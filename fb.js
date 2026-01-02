@@ -1,39 +1,89 @@
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-    const inputUrl = url.searchParams.get('url');
+    const fbUrl = url.searchParams.get("url");
 
-    // Step 1: Validate Input
-    const fbRegex = /(facebook\.com|fb\.watch|fb\.com|m\.facebook\.com|instagram\.com)/;
-    
-    if (!inputUrl || !fbRegex.test(inputUrl)) {
+    // 1️⃣ Validate URL
+    if (
+      !fbUrl ||
+      (!fbUrl.includes("facebook.com") && !fbUrl.includes("fb.watch"))
+    ) {
       return new Response(
         JSON.stringify({
-          status: 'error',
-          message: 'Missing or invalid Facebook URL. Make sure the link is Public.'
+          status: "error",
+          message: "Invalid Facebook URL"
         }, null, 2),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    let finalResult = null;
+    // 2️⃣ Single Ultra-Fast API Source
+    const api = `https://fb.bdbots.xyz/dl?url=${encodeURIComponent(fbUrl)}`;
 
-    // --- METHOD 1: Cobalt API (Best & Most Reliable) ---
     try {
-      console.log('Trying Method 1: Cobalt API');
-      const cobaltResponse = await fetch('https://api.cobalt.tools/api/json', {
-        method: 'POST',
+      const res = await fetch(api, {
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        body: JSON.stringify({
-          url: inputUrl,
-          vQuality: '720' // Koshish karein HD lene ki
-        })
+          "User-Agent": "Mozilla/5.0",
+          "Accept": "application/json"
+        }
       });
 
+      if (!res.ok) {
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            message: "Facebook API failed"
+          }, null, 2),
+          { status: 502 }
+        );
+      }
+
+      const data = await res.json();
+
+      if (data.status !== "success" || !data.downloads) {
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            message: "Invalid API response"
+          }, null, 2),
+          { status: 500 }
+        );
+      }
+
+      // 3️⃣ Extract HD & SD
+      const hd = data.downloads.find(v => v.quality === "HD") || null;
+      const sd = data.downloads.find(v => v.quality === "SD") || null;
+
+      // 4️⃣ Final API Response
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          title: data.title || null,
+          hd: hd ? hd.url : null,
+          sd: sd ? sd.url : null,
+          channel: "@old_studio786"
+        }, null, 2),
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-store"
+          }
+        }
+      );
+
+    } catch (err) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "Server crash",
+          error: err.message
+        }, null, 2),
+        { status: 500 }
+      );
+    }
+  }
+};
       if (cobaltResponse.ok) {
         const data = await cobaltResponse.json();
         // Cobalt ka response structure simple hota hai
